@@ -1,5 +1,6 @@
 
 mod application;
+mod actor_models;
 
 use actix_web;
 use actix_web::{HttpServer, App, web, HttpResponse};
