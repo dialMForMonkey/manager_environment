@@ -6,10 +6,10 @@
 
 use actix::prelude::*;
 
-struct Variable {
-    name: String,
-    situation:  Option<bool>, // on off
-    value: Option<String>
+pub struct Variable {
+    pub name: String,
+    pub situation:  Option<bool>, // on off
+    pub value: Option<String>
 }
 
 #[derive(Message)]
