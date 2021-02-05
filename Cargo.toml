@@ -14,6 +14,12 @@ env_logger="0.8.2"
 mongodb = "1.1.1"
 async-trait = "0.1.42"
 bson = "1.1.0"
+tokio = { version="0.2.x", features=["full"]}
+
 
 [dev-dependencies]
-mockall = "0.8.0"
+#mockall = "0.8.0"
+#ver se consigo colocar isso de acordo com o env
+dotenv = "0.15.0"
+
+
