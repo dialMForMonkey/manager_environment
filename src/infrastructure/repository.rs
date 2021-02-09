@@ -6,6 +6,9 @@ mod test_integration {
     use tokio;
     use std::env;
     use dotenv::dotenv;
+    use mongodb::options::ClientOptions;
+    use mongodb::Client;
+
 
     #[tokio::test]
     async fn insert_variable_test(){
@@ -23,6 +26,25 @@ mod test_integration {
         assert!(result_insert.is_ok())
 
     }
+
+    #[tokio::test]
+    async fn get_all_variable_test(){
+        let a  = dotenv::from_filename("test_integration.env").unwrap();
+
+        let env:  manager_environment_repository::EnvironmentRepository =   manager_environment_repository::EnvironmentRepository {
+            name: "teste".to_string(),
+            status:false,
+            value: "teste".to_string()
+        };
+        //ver a necessidade disso quando a funcao no precisa do objeto
+        let  manager= manager_environment_repository::ActionsDB::new(env);
+
+        let r_variables = manager.get_all_variables().await;
+        assert!(r_variables.is_ok());
+        let variables  = r_variables.unwrap();
+        assert_ne!(variables.len(), 0)
+
+    }
 }
 
 
@@ -30,8 +52,9 @@ mod test_integration {
 pub mod manager_environment_repository {
     use crate::actor_models::environmentVariableActor::Variable;
     use async_trait::async_trait;
-    use mongodb::{Client, options::ClientOptions};
+    use mongodb::{Client, options::ClientOptions, Collection};
     use mongodb::bson::doc;
+    use tokio::stream::StreamExt;
 
 
     async fn get_client_mongo() -> Client {
@@ -62,10 +85,16 @@ pub mod manager_environment_repository {
     pub trait ActionsDB {
         fn new( env: Self) -> Self ;
         async fn insert_variable(&self) -> Result<(), &str>;
-        async fn get_all_variables() -> Result<Vec<EnvironmentRepository>, String>;
+        async fn get_all_variables(&self) -> Result<Vec<EnvironmentRepository>, String>;
         async fn get_variable(name :String) -> Result<Vec<EnvironmentRepository>, String>;
     }
 
+
+    async fn get_client_collection(db_name: &str, collection_name: &str) -> Collection {
+        let client_mongo = get_client_mongo().await;
+        let db = client_mongo.database(db_name);
+        db.collection(collection_name )
+    }
 
     #[async_trait]
     impl ActionsDB for EnvironmentRepository {
@@ -73,10 +102,9 @@ pub mod manager_environment_repository {
             env
         }
 
+
         async fn insert_variable(&self) -> Result<(), &str> {
-            let client_mongo = get_client_mongo().await;
-            let db = client_mongo.database("environments_collections");
-            let collection = db.collection("environments");
+            let collection= get_client_collection("environments_collections", "environments").await;
 
             let document = doc! {
                 "name": &self.name,
@@ -93,8 +121,22 @@ pub mod manager_environment_repository {
 
         }
 
-        async fn get_all_variables() -> Result<Vec<EnvironmentRepository>, String> {
-            unimplemented!()
+        async fn get_all_variables(&self) -> Result<Vec<EnvironmentRepository>, String> {
+            let collection = get_client_collection("environments_collections", "environments").await;
+
+            let result_cursor = collection.find(None, None).await.unwrap();
+
+           Ok(
+               result_cursor.map(|cursor |{
+                    let document: bson::document::Document  = cursor.unwrap();
+                    EnvironmentRepository {
+                        name: document.get("name").unwrap().as_str().unwrap().parse().unwrap(),
+                        status: document.get("status").unwrap().as_str().unwrap().parse().unwrap(),
+                        value: document.get("value").unwrap().as_str().unwrap().parse().unwrap()
+                    }
+                })
+                .collect::<Vec<EnvironmentRepository>>().await
+           )
         }
 
         async fn get_variable(name: String) -> Result<Vec<EnvironmentRepository>, String> {
