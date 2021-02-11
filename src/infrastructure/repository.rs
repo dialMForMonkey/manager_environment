@@ -11,6 +11,7 @@ mod test_integration {
 
 
     #[tokio::test]
+    #[ignore]
     async fn insert_variable_test(){
         dotenv::from_filename("test_integration.env").unwrap();
 
@@ -28,6 +29,7 @@ mod test_integration {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn get_all_variable_test(){
         dotenv::from_filename("test_integration.env").unwrap();
 
