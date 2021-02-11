@@ -12,7 +12,7 @@ mod test_integration {
 
     #[tokio::test]
     async fn insert_variable_test(){
-        let a  = dotenv::from_filename("test_integration.env").unwrap();
+        dotenv::from_filename("test_integration.env").unwrap();
 
        let env:  manager_environment_repository::EnvironmentRepository =   manager_environment_repository::EnvironmentRepository {
             name: "teste".to_string(),
@@ -29,7 +29,7 @@ mod test_integration {
 
     #[tokio::test]
     async fn get_all_variable_test(){
-        let a  = dotenv::from_filename("test_integration.env").unwrap();
+        dotenv::from_filename("test_integration.env").unwrap();
 
         let env:  manager_environment_repository::EnvironmentRepository =   manager_environment_repository::EnvironmentRepository {
             name: "teste".to_string(),
@@ -45,16 +45,35 @@ mod test_integration {
         assert_ne!(variables.len(), 0)
 
     }
+
+    #[tokio::test]
+    async fn get_variable_test(){
+        dotenv::from_filename("test_integration.env").unwrap();
+        let env:  manager_environment_repository::EnvironmentRepository =   manager_environment_repository::EnvironmentRepository {
+            name: "teste".to_string(),
+            status:false,
+            value: "teste".to_string()
+        };
+        //ver a necessidade disso quando a funcao no precisa do objeto
+        let  manager= manager_environment_repository::ActionsDB::new(env);
+
+        let r_variables = manager.get_variable("teste").await;
+
+        assert_eq!(1, 0)
+    }
+
 }
 
 
 
 pub mod manager_environment_repository {
-    use crate::actor_models::environmentVariableActor::Variable;
+    use crate::actor_models::environment_variable_actor::Variable;
     use async_trait::async_trait;
     use mongodb::{Client, options::ClientOptions, Collection};
     use mongodb::bson::doc;
     use tokio::stream::StreamExt;
+    use bson::Bson;
+    use bson::spec::ElementType::Boolean;
 
 
     async fn get_client_mongo() -> Client {
@@ -75,6 +94,8 @@ pub mod manager_environment_repository {
         }
     }
 
+
+
     pub struct EnvironmentRepository {
         pub name: String,
         pub status: bool,
@@ -85,8 +106,8 @@ pub mod manager_environment_repository {
     pub trait ActionsDB {
         fn new( env: Self) -> Self ;
         async fn insert_variable(&self) -> Result<(), &str>;
-        async fn get_all_variables(&self) -> Result<Vec<EnvironmentRepository>, String>;
-        async fn get_variable(name :String) -> Result<Vec<EnvironmentRepository>, String>;
+        async fn get_all_variables(&self) -> Result<Vec<EnvironmentRepository>, &str>;
+        async fn get_variable(&self, name: &str) -> Result<Vec<EnvironmentRepository>, &'static str>;
     }
 
 
@@ -121,26 +142,69 @@ pub mod manager_environment_repository {
 
         }
 
-        async fn get_all_variables(&self) -> Result<Vec<EnvironmentRepository>, String> {
+        async fn get_all_variables(&self) -> Result<Vec<EnvironmentRepository>, &str> {
             let collection = get_client_collection("environments_collections", "environments").await;
 
-            let result_cursor = collection.find(None, None).await.unwrap();
+            let result_cursor = collection.find(None, None).await;
+            match result_cursor {
+                Ok(cursor) => {
+                    Ok(
+                        cursor.map(|cursor |{
+                            let document: bson::document::Document  = cursor.unwrap();
 
-           Ok(
-               result_cursor.map(|cursor |{
-                    let document: bson::document::Document  = cursor.unwrap();
-                    EnvironmentRepository {
-                        name: document.get("name").unwrap().as_str().unwrap().parse().unwrap(),
-                        status: document.get("status").unwrap().as_str().unwrap().parse().unwrap(),
-                        value: document.get("value").unwrap().as_str().unwrap().parse().unwrap()
-                    }
-                })
-                .collect::<Vec<EnvironmentRepository>>().await
-           )
+                            EnvironmentRepository {
+                                name: match document.get("name"){
+                                    Some(name_bson) => {
+                                        name_bson
+                                            .as_str()
+                                            .unwrap_or("")
+                                            .parse()
+                                            .unwrap_or(String::new())
+                                    },
+                                    None => String::new()
+                                },
+                                status: match document.get("status") {
+                                    Some(status_bson) => {
+                                        status_bson
+                                            .as_bool()
+                                            .unwrap_or(false)
+                                    },
+                                    None => false
+                                },
+                                value: match document.get("value") {
+                                    Some(value_bson) => {
+                                        value_bson
+                                            .as_str()
+                                            .unwrap_or("")
+                                            .parse()
+                                            .unwrap_or(String::new())
+                                    },
+                                    None=> String::new()
+                                }
+                            }
+                        })
+                            .collect::<Vec<EnvironmentRepository>>().await
+
+                    )
+                },
+                Err(_) => {
+                    Err("Erro ao buscar find")
+                }
+            }
         }
 
-        async fn get_variable(name: String) -> Result<Vec<EnvironmentRepository>, String> {
-            unimplemented!()
+        async fn get_variable(&self ,name: &str) -> Result<Vec<EnvironmentRepository>, &'static str> {
+            let collection = get_client_collection("environments_collections", "environments").await;
+
+            let document_for_find = doc! {
+                "name": name
+            };
+
+
+            let result_cursor = collection.find(Some(document_for_find), None).await.unwrap();
+            println!("{:?}", result_cursor);
+
+            Err("erro")
         }
     }
 }
