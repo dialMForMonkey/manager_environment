@@ -46,7 +46,7 @@ mod test_integration {
 
     }
 
-    #[tokio::test]
+    ////#[tokio::test]
     async fn get_variable_test(){
         dotenv::from_filename("test_integration.env").unwrap();
         let env:  manager_environment_repository::EnvironmentRepository =   manager_environment_repository::EnvironmentRepository {
